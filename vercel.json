@@ -19,7 +19,7 @@
       "destination": "index.py"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/frontend/$1"
     }
   ]
