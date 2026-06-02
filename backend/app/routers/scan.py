@@ -1,58 +1,59 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlmodel import Session, select
+from cryptography.fernet import Fernet
+from app.core.config import settings
 import httpx
 import re
+import jwt
 
 from app.core.database import session as get_session
 from app.models.user import User
 from app.models.footprint import DigitalFootprint
+from app.core.config import settings
 
 router = APIRouter(prefix="/scan", tags=["Radar Scanner"])
 
-def extract_platform_name(email_from_string: str):
-    """
-    Extracts platform name and domain from an email "From" string.
-    Example: "Netflix <info@mail.netflix.com>" becomes ("Netflix", "netflix.com").
-    """
-    # 1. Find the email address in the string using regex
-    email_match = re.search(r'[\w\.-]+@([\w\.-]+)', email_from_string)
-    if not email_match:
-        return None, None
-        
-    raw_domain = email_match.group(1).lower() # Example: "mail.netflix.com" or "info.tokopedia.com"
-    
-    # 2. Clean up common email subdomains
-    # We remove prefixes like mail., noreply., info., notification., etc.
-    cleaned_domain = re.sub(r'^(mail|noreply|info|notification|alerts|news|update|account)\.', '', raw_domain)
-    
-    # 3. Use the first part of the domain as the official Platform Name
-    # Example: "netflix.com" becomes "Netflix"
-    platform_name = cleaned_domain.split('.')[0].capitalize()
-    
-    return platform_name, cleaned_domain
+fernet = Fernet(settings.ENCRYPTION_KEY.encode())
 
-@router.post("/gmail/{user_id}")
-async def scan_gmail_inbox(user_id: int, db: Session = Depends(get_session)):
+# Utility function to extract platform name from email address
+def get_current_user_id(authorization: str = Header(...)) -> int:
+    try:
+        token_type, token = authorization.split(" ")
+        if token_type.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+            
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        return payload["user_id"]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Sess!")
+
+# Name extraction logic based on email patterns
+@router.post("/gmail")
+async def scan_gmail_inbox(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_session)
+):
     user = db.get(User, user_id)
     if not user or not user.google_access_token:
         raise HTTPException(status_code=404, detail="User or Access Token not found")
 
-    headers = {"Authorization": f"Bearer {user.google_access_token}"}
+    try:
+        decrypted_token = fernet.decrypt(user.google_access_token.encode()).decode()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Token decryption failed")
+    
+    headers = {"Authorization": f"Bearer {decrypted_token}"}
     
     async with httpx.AsyncClient() as client:
-        # Scan the last 100 emails
         gmail_list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100"
         list_response = await client.get(gmail_list_url, headers=headers)
         
         if list_response.status_code != 200:
-            print(f"\n[!!!] GMAIL API ERROR - STATUS CODE: {list_response.status_code}")
-            print(f"[!!!] GOOGLE RESPONSE: {list_response.text}\n")
-            raise HTTPException(status_code=401, detail=f"Google API Error: {list_response.text}")
+            print(f"[!] GMAIL API Error - Status Code:", list_response.status_code)
+            raise HTTPException(status_code=401, detail="Google API Authorization failed.")
             
         messages = list_response.json().get("messages", [])
         detected_count = 0
-        
-        # Temporary set to avoid redundant database hits within the loop
         scanned_platforms = set()
         
         for msg in messages:
@@ -66,19 +67,15 @@ async def scan_gmail_inbox(user_id: int, db: Session = Depends(get_session)):
                 
                 if email_from:
                     platform_name, domain = extract_platform_name(email_from)
-                    
-                    # Filter: Exclude personal email domains
                     banned_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'ymail.com', 'warga']
                     if not platform_name or domain in banned_domains:
                         continue
                         
-                    # Prevent duplicate processing in a single scan session
                     if platform_name in scanned_platforms:
                         continue
                         
                     scanned_platforms.add(platform_name)
                     
-                    # Check if this platform is already registered for the user
                     stmt = select(DigitalFootprint).where(
                         DigitalFootprint.user_id == user_id, 
                         DigitalFootprint.platform_name == platform_name
@@ -86,13 +83,12 @@ async def scan_gmail_inbox(user_id: int, db: Session = Depends(get_session)):
                     exists = db.exec(stmt).first()
                     
                     if not exists:
-                        # Automatically create new footprint data
                         new_footprint = DigitalFootprint(
                             user_id=user_id,
                             platform_name=platform_name,
-                            category="UNCATEGORIZED", # Default category
-                            risk_level="MEDIUM",       # Default risk assessment
-                            description= f"Automated radar detection from official domain: {domain}"
+                            category="UNCATEGORIZED",
+                            risk_level="MEDIUM",
+                            description=f"Automated radar detection from official domain: {domain}"
                         )
                         db.add(new_footprint)
                         detected_count += 1
@@ -105,9 +101,12 @@ async def scan_gmail_inbox(user_id: int, db: Session = Depends(get_session)):
         "new_footprints_found": detected_count
     }
 
-@router.get("/footprints/{user_id}")
-def get_user_footprints(user_id: int, db: Session = Depends(get_session)):
-    # Retrieve all digital footprints for a specific user
+# Helper function to extract platform name and domain from email address
+@router.get("/footprints")
+def get_user_footprints(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_session)
+):
     stmt = select(DigitalFootprint).where(DigitalFootprint.user_id == user_id)
     footprints = db.exec(stmt).all()
     return footprints

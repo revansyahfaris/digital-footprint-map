@@ -2,15 +2,29 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from pydantic import BaseModel
 import httpx
+import jwt
+from datetime import datetime, timedelta
+from cryptography.fernet import Fernet
 
 from app.core.database import session as get_session
 from app.models.user import User
+from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+fernet = Fernet(settings.ENCRYPTION_KEY.encode())
 
 # Schema to receive JSON data from the frontend
 class TokenPayload(BaseModel):
     access_token: str
+
+# Function to create a JWT session token for the user
+def create_session_token(user_id: int) -> str:
+    payload = {
+        "user_id": user_id,
+        "exp": datetime.now() + timedelta(days=1)
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
 
 @router.post("/google")
 async def google_authentication(payload: TokenPayload, db: Session = Depends(get_session)):
@@ -42,10 +56,13 @@ async def google_authentication(payload: TokenPayload, db: Session = Depends(get
     # 3. Synchronize with database using SQLModel
     statement = select(User).where(User.email == email)
     existing_user = db.exec(statement).first()
+
+    pure_token = payload.access_token
+    encrypted_token = fernet.encrypt(pure_token.encode()).decode()
     
     if existing_user:
         # If user has logged in before, update their token
-        existing_user.google_access_token = payload.access_token
+        existing_user.google_access_token = encrypted_token
         existing_user.name = name
         db.add(existing_user)
         db.commit()
@@ -56,12 +73,14 @@ async def google_authentication(payload: TokenPayload, db: Session = Depends(get
         new_user = User(
             email=email,
             name=name,
-            google_access_token=payload.access_token
+            google_access_token=encrypted_token
         )
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         user_record = new_user
+
+    session_jwt = create_session_token(user_record.id)
         
     return {
         "status": "success",
