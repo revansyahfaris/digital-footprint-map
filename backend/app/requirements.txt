@@ -10,3 +10,4 @@ pydantic-settings # For managing application settings with Pydantic
 psycopg[binary] # For PostgreSQL database adapter
 httpx # For making HTTP requests to external APIs
 pyjwt # For handling JSON Web Tokens (JWT) for authentication
+cryptography # For secure password hashing and token generation
