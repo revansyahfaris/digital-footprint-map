@@ -13,7 +13,6 @@ import type { DBFootprint } from './utils';
 import '@xyflow/react/dist/style.css';
 
 interface UserProfile {
-  id: number;
   email: string;
   name: string | null;
 }
@@ -25,7 +24,11 @@ const nodeTypes = {
 };
 
 function App() {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const savedUser = localStorage.getItem('user_data');
+    const savedToken = localStorage.getItem('session_token');
+    return (savedUser && savedToken) ? JSON.parse(savedUser) : null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [selectedNodeData, setSelectedNodeData] = useState<CustomNodeData | null>(null);
@@ -35,12 +38,18 @@ function App() {
   // 2. Automatic trigger pattern: Increment this to trigger map updates
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // 3. Synchronization effect: Fetch user footprints from the database
+  // 3. Synchronization effect: Fetch user footprints from the database using JWT
   useEffect(() => {
     let isMounted = true;
+    const token = localStorage.getItem('session_token');
 
-    if (user) {
-      fetch(`/api/scan/footprints/${user.id}`)
+    if (user && token) {
+      fetch('/api/scan/footprints', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
         .then((res) => {
           if (!res.ok) throw new Error('Failed to fetch');
           return res.json();
@@ -62,18 +71,23 @@ function App() {
   const { nodes, edges } = generateNodesAndEdges(userLabel, dbFootprints);
 
   const handleTriggerScan = async () => {
-    if (!user) return;
+    const token = localStorage.getItem('session_token');
+    if (!user || !token) return;
+    
     setIsScanning(true);
     try {
-      const response = await fetch(`/api/scan/gmail/${user.id}`, {
+      const response = await fetch('/api/scan/gmail', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       if (!response.ok) throw new Error('Scan engine failed');
       
       const result = await response.json();
       alert(`SCAN COMPLETE: Scanned ${result.messages_scanned} emails. Found ${result.new_footprints_found} new platforms!`);
       
-      // 4. Trigger refresh via key increment
+      // Trigger refresh via key increment
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error(error);
@@ -93,8 +107,15 @@ function App() {
           body: JSON.stringify({ access_token: tokenResponse.access_token }),
         });
         if (!response.ok) throw new Error('Backend authentication failed');
+        
         const data = await response.json();
-        setUser(data.user);
+        
+        // SECURE SESSION STORAGE
+        if (data.access_token) {
+          localStorage.setItem('session_token', data.access_token);
+          localStorage.setItem('user_data', JSON.stringify(data.user));
+          setUser(data.user);
+        }
       } catch (error) {
         console.error(error);
         alert('Failed to sync with backend server.');
@@ -119,6 +140,8 @@ function App() {
             <button 
               onClick={() => {
                  googleLogout();
+                 localStorage.removeItem('session_token');
+                 localStorage.removeItem('user_data');
                  setUser(null);
                  setSelectedNodeData(null);
                  setDbFootprints([]);
@@ -171,7 +194,9 @@ function App() {
                   <span className="text-xs bg-black text-white px-2 py-0.5 font-bold uppercase tracking-widest">
                     INSIGHT_PANEL
                   </span>
-                  <h2 className="text-4xl font-black uppercase mt-2 text-[#FF0000] leading-none">
+                  <h2
+                    className="text-4xl font-black uppercase mt-2 text-[#FF0000] leading-none"
+                    style={{ color: '#ffffff', textShadow: '2px 2px 0px #000' }}>
                     {selectedNodeData.label}
                   </h2>
                 </div>

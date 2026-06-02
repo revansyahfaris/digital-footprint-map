@@ -85,6 +85,8 @@ async def google_authentication(payload: TokenPayload, db: Session = Depends(get
     return {
         "status": "success",
         "message": "User authenticated successfully",
+        "access_token": session_jwt,
+        "token_type": "bearer",
         "user": {
             "id": user_record.id,
             "email": user_record.email,

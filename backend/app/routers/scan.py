@@ -24,8 +24,12 @@ def get_current_user_id(authorization: str = Header(...)) -> int:
             
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
         return payload["user_id"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired. Please login again.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid session token.")
     except Exception:
-        raise HTTPException(status_code=401, detail="Sess!")
+        raise HTTPException(status_code=401, detail="Authentication failed.")
 
 # Name extraction logic based on email patterns
 @router.post("/gmail")

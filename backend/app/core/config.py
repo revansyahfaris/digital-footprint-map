@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     GMAIL_API_KEY: str = ""
     OAUTH_CLIENT_ID: str = ""
     OAUTH_CLIENT_SECRET: str = ""
-    JWT_SECRET_KEY: str = "JuJuR AkU KuRaNg tAhU MaU DiIsI ApA"
+    JWT_SECRET: str
     ENCRYPTION_KEY: str
 
     class Config:
