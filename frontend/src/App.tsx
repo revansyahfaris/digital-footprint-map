@@ -333,7 +333,7 @@ function App() {
 
             {/* STATIC DISCLOSURE FOOTER */}
             <div className="border-2 border-dashed border-black p-4 text-center text-[10px] font-black text-gray-600 uppercase tracking-wider">
-              Educational Project - Computer Engineering 2024 Cohort • Diponegoro University • Secure Sandbox Deployment
+              Educational Project - https://github.com/revansyahfaris/digital-footprint-map • Computer Engineering - Diponegoro University • Secure Sandbox Deployment
             </div>
           </section>
         </div>

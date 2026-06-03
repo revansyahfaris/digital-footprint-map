@@ -1,68 +1,123 @@
-# Digital Footprint Map
+# Digital Footprint Map ⚡
 
-Digital Footprint Map is a web application designed to help users visualize and understand their digital presence. By scanning Gmail inboxes for service-related emails, it identifies various platforms where the user has registered accounts and maps them out in an interactive radial visualization.
+[![Deployment Status](https://img.shields.io/badge/Deployment-Live%20on%20Vercel-brightgreen?style=for-the-badge&logo=vercel)](https://digital-footprint-map.vercel.app/)
 
-## Key Features
+**Digital Footprint Map** is an interactive web application built on a that *Groovy* aesthetic, designed to help users track, map, and analyze their hidden digital footprint. By securely scanning a Gmail inbox, the system detects historical registration emails from various digital services and assembles them into an interactive radial network topology.
 
-- **Google Authentication**: Secure login using Google OAuth.
-- **Gmail Radar Scan**: Automatically detects registered services by analyzing email headers (last 100 emails).
-- **Interactive Visualization**: Uses `React Flow` to create a radial map of your digital footprint, categorized by service types.
-- **Risk Assessment**: Assigns risk levels (High, Medium, Low) to different platforms to help users prioritize data privacy actions.
-- **Data Privacy Insights**: Provides descriptions and easy access to request data deletion (conceptual).
+This application was developed as a self-project to learn more about API usage, especially Google API
 
-## Architecture
+🔗 **Live Demo:** [https://digital-footprint-map.vercel.app/](https://digital-footprint-map.vercel.app/)
 
-The project is split into two main components:
+---
+
+## 🚀 Key Features & System Updates
+
+- **Secure Google OAuth Handshake**: Integrated login using Google Sign-In. The user's access token (`google_access_token`) is immediately isolated and secured in the database using the industry-standard **Fernet (AES-128)** cryptographic algorithm.
+- **High-Concurrency Radar Scanner**: The backend scanning engine uses an asynchronous pattern (`httpx` + `asyncio.gather`) to fetch metadata from 100 emails in parallel. Reduces execution time from 15 seconds to under 2 seconds, avoiding Vercel's *Serverless Timeout*.
+- **Automated Risk & Category Assessment**: Equipped with a dynamic rules dictionary (*Radar Rules Engine*) that automatically categorizes platforms (e.g. *Social Media*, *Entertainment*, *Finance*) and assigns personal data risk labels (*HIGH*, *MEDIUM*, *LOW*).
+- **Interactive Radial Graph Topology**: Uses `@xyflow/react` (ReactFlow) to render a dynamic spider-web data visualization. Node positions are optimized with an anti-overlap *staggered ring layers* algorithm, with responsive 1-finger *pan-on-drag* support on mobile.
+- **Real-Time Data Purge Protocol**: The data deletion button connects directly to the backend API (`DELETE`). On click, it severs the cyber-trace records from the NeonDB database and instantly re-renders the visual map topology on the frontend with no page reload (*real-time collapse*).
+- **Dynamic Viewport Height Layout**: Uses the modern CSS unit `100dvh` to ensure all visual control tools and scan buttons are never clipped by the browser navigation bar on mobile.
+
+---
+
+## 🛠️ Technology Architecture
 
 ### Backend (`/backend`)
-- **Framework**: FastAPI (Python)
-- **Database**: SQLModel (SQLAlchemy + Pydantic)
-- **Migrations**: Alembic
-- **Integration**: Google Gmail API for scanning.
+- **Core Framework**: FastAPI (Python 3.10+) — High performance, async, with automatic OpenAPI/Swagger documentation.
+- **ORM Database Engine**: SQLModel (SQLAlchemy + Pydantic v2 combined) connected to the **NeonDB (PostgreSQL)** serverless cloud database.
+- **Database Migrations**: Alembic for versioned, structured schema tracking.
+- **Security & Crypto**: PyJWT (User session authentication) & Cryptography Fernet.
 
 ### Frontend (`/frontend`)
-- **Framework**: React with TypeScript
-- **Build Tool**: Vite
-- **Visualization**: React Flow (@xyflow/react)
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand (implied/used in similar patterns)
+- **Framework & Build Tools**: React 19 + TypeScript + Vite.
+- **Interactive Canvas Engine**: React Flow (`@xyflow/react`) for rendering the cyber diagram.
+- **Styling Architecture**: Tailwind CSS v4 with a *Modern Neo-Brutalist* aesthetic approach.
 
-## Getting Started
+---
+
+## 📦 Local Installation Guide
 
 ### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- Google Cloud Project with Gmail API enabled and OAuth 2.0 credentials.
+- Python 3.10 or higher
+- Node.js 18 or higher
+- A Google Cloud Console project with **Gmail API** enabled & OAuth 2.0 Credentials configured.
 
-### Installation
+### 1. Clone the Repository
+```bash
+git clone https://github.com/revansyahfaris/digital-footprint-map.git
+cd digital-footprint-map
+```
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd digital-footprint-map
-   ```
+### 2. Backend Configuration
 
-2. **Setup Backend**:
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   # Create a .env file with DATABASE_URL and Google credentials
-   alembic upgrade head
-   uvicorn app.main:app --reload
-   ```
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-3. **Setup Frontend**:
-   ```bash
-   cd ../frontend
-   npm install
-   # Create a .env file with VITE_GOOGLE_CLIENT_ID
-   npm run dev
-   ```
+Create a `.env` file inside the `backend/` folder and fill in the following variables:
 
-## Usage
+```env
+DATABASE_URL="postgresql://user:password@your-neondb-url/dbname?sslmode=require"
+JWT_SECRET="your-random-secret-jwt-string"
+ENCRYPTION_KEY="your-fernet-key-32-bytes-base64-url-safe"
+OAUTH_CLIENT_ID="your-google-client-id.apps.googleusercontent.com"
+OAUTH_CLIENT_SECRET="your-google-client-secret"
+```
 
-1. Login with your Google account.
-2. Click "INITIALIZE GMAIL RADAR SCAN" to start identifying your accounts.
-3. Explore the generated map and click on nodes to see risk assessments.
+Run the local database migration and start the uvicorn server:
+
+```bash
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+### 3. Frontend Configuration
+
+Open a new terminal tab outside the backend folder:
+
+```bash
+cd frontend
+npm install
+```
+
+Create a `.env` file inside the `frontend/` folder and register your Google Client ID:
+
+```env
+VITE_GOOGLE_CLIENT_ID="your-google-client-id.apps.googleusercontent.com"
+```
+
+Start the local development server (supports mobile access via laptop IP):
+
+```bash
+npm run dev -- --host
+```
+
+---
+
+## 📡 Vercel Serverless Deployment Configuration
+
+This application is fully configured so that the Python backend and React frontend can run harmoniously side by side as a single *Serverless Monorepo* domain via the `vercel.json` file:
+
+```json
+{
+  "version": 2,
+  "builds": [
+    { "src": "backend/index.py", "use": "@vercel/python" },
+    { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
+  ],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "backend/index.py" },
+    { "source": "/((?!api/).*)", "destination": "/frontend/$1" }
+  ]
+}
+```
+
+---
+
+## ⚖️ Privacy Notice & Disclaimer
+
+This application is an **Self Sandbox Project**. The Gmail scan reads only the sender metadata (`From` header) of the 100 most recent registration emails *in-memory* and **NEVER** reads, opens, or stores the content of any email message body. The *Request Data Deletion* feature severs and removes all historical cyber-trace data from the application's local database (NeonDB).
