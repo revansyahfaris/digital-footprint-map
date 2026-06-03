@@ -206,6 +206,10 @@ function App() {
                   setSelectedNodeData(null);
                 }
               }}
+              nodesDraggable={false}
+              edgesFocusable={false}
+              elementsSelectable={false}
+              panOnDrag={true}
             >
               <Background color="#000" gap={20} size={2} />
               {/* 3. RELOKASI POSISI CONTROLS AGAR TIDAK DITABRAK TOMBOL SCAN */}
