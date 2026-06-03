@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.models.user import User
 from app.schemas.user import UserResponse
 from app.routers.scan import get_current_user_id
 from app.core.database import session as get_session
-from httpx import HTTPException
 
 # Create a specialized router for User-related operations
 router = APIRouter(prefix="/users", tags=["Users"])
