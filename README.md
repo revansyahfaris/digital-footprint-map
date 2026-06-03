@@ -1,4 +1,4 @@
-# Digital Footprint Map ⚡
+# Digital Footprint Map 👣
 
 [![Deployment Status](https://img.shields.io/badge/Deployment-Live%20on%20Vercel-brightgreen?style=for-the-badge&logo=vercel)](https://digital-footprint-map.vercel.app/)
 
