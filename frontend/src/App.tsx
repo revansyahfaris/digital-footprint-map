@@ -6,7 +6,6 @@ import logo from './assets/Logo with Text.png';
 import { CoreNode, CategoryNode, PlatformNode } from './CustomNodes';
 import type { CustomNodeData } from './CustomNodes';
 
-// 1. Import functions and types from utils.ts
 import { generateNodesAndEdges } from './utils'; 
 import type { DBFootprint } from './utils'; 
 
@@ -34,11 +33,8 @@ function App() {
   const [selectedNodeData, setSelectedNodeData] = useState<CustomNodeData | null>(null);
   
   const [dbFootprints, setDbFootprints] = useState<DBFootprint[]>([]);
-  
-  // 2. Automatic trigger pattern: Increment this to trigger map updates
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // 3. Synchronization effect: Fetch user footprints from the database using JWT
   useEffect(() => {
     let isMounted = true;
     const token = localStorage.getItem('session_token');
@@ -65,7 +61,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [user, refreshKey]); // Re-run if user changes or refreshKey increments
+  }, [user, refreshKey]);
 
   const userLabel = user ? (user.name || user.email) : 'USER';
   const { nodes, edges } = generateNodesAndEdges(userLabel, dbFootprints);
@@ -87,7 +83,6 @@ function App() {
       const result = await response.json();
       alert(`SCAN COMPLETE: Scanned ${result.messages_scanned} emails. Found ${result.new_footprints_found} new platforms!`);
       
-      // Trigger refresh via key increment
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error(error);
@@ -110,7 +105,6 @@ function App() {
         
         const data = await response.json();
         
-        // SECURE SESSION STORAGE
         if (data.access_token) {
           localStorage.setItem('session_token', data.access_token);
           localStorage.setItem('user_data', JSON.stringify(data.user));
@@ -132,10 +126,10 @@ function App() {
       <div className="h-screen bg-[#f4f0e6] font-mono text-black flex flex-col w-full overflow-hidden">
         {/* NAVBAR */}
         <nav className="flex justify-between items-center p-4 border-b-4 border-black bg-white w-full z-10 shrink-0">
-          <img src={logo} alt="Logo" className="h-10 sm:h-12" />
-          <div className="flex items-center gap-4">
-            <span className="font-black border-2 border-black px-3 py-1 bg-yellow-300 text-xs sm:text-sm tracking-tight">
-              OPERATOR: {user.name?.toUpperCase() || user.email.toUpperCase()}
+          <img src={logo} alt="Logo" className="h-8 sm:h-12" />
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="font-black border-2 border-black px-2 py-1 bg-yellow-300 text-[10px] sm:text-sm tracking-tight truncate max-w-[140px] sm:max-w-none">
+              OP: {user.name?.toUpperCase() || user.email.toUpperCase()}
             </span>
             <button 
               onClick={() => {
@@ -146,7 +140,7 @@ function App() {
                  setSelectedNodeData(null);
                  setDbFootprints([]);
               }} 
-              className="bg-black text-white font-black text-xs sm:text-sm border-2 border-black px-4 py-1 hover:bg-[#FF0000] transition-colors"
+              className="bg-black text-white font-black text-[10px] sm:text-sm border-2 border-black px-3 py-1 hover:bg-[#FF0000] transition-colors"
             >
               LOGOUT
             </button>
@@ -171,34 +165,51 @@ function App() {
             >
               <Background color="#000" gap={20} size={2} />
               <Controls className="!border-4 !border-black !shadow-[2px_2px_0_0_#000] !bg-white !rounded-none" />
-              <MiniMap nodeColor="#FF0000" maskColor="rgba(244, 240, 230, 0.6)" className="!border-4 !border-black !shadow-[4px_4px_0_0_#000] !rounded-none" />
+              <MiniMap nodeColor="#FF0000" maskColor="rgba(244, 240, 230, 0.6)" className="hidden sm:block !border-4 !border-black !shadow-[4px_4px_0_0_#000] !rounded-none" />
             </ReactFlow>
 
-            {/* FLOATING ACTION CENTER */}
-            <div className="absolute bottom-4 left-16 z-10">
+            {/* FLOATING ACTION CENTER (RESPONSIF MOBILE-FRIENDLY) */}
+            <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:left-16 z-10 text-center sm:text-left">
               <button 
                 onClick={handleTriggerScan}
                 disabled={isScanning}
-                className="bg-yellow-300 text-black font-black text-lg border-4 border-black px-6 py-3 shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#000] transition-all uppercase disabled:opacity-50"
+                className="w-full sm:w-auto bg-yellow-300 text-black font-black text-sm sm:text-lg border-2 sm:border-4 border-black px-4 py-2 sm:px-6 sm:py-3 shadow-[3px_3px_0_0_#000] sm:shadow-[4px_4px_0_0_#000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[1px_1px_0_0_#000] transition-all uppercase disabled:opacity-50"
               >
-                {isScanning ? "RADAR SCANNING IN PROGRESS..." : "INITIALIZE GMAIL RADAR SCAN"}
+                {/* Trik CSS: Sembunyikan teks panjang di HP, ganti dengan teks padat */}
+                <span className="block sm:hidden">
+                  {isScanning ? "SCANNING INBOX..." : "⚡ START SCAN RADAR"}
+                </span>
+                <span className="hidden sm:block">
+                  {isScanning ? "RADAR SCANNING IN PROGRESS..." : "INITIALIZE GMAIL RADAR SCAN"}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* SIDEBAR DETAIL PANEL */}
-          <div className={`w-full sm:w-[380px] bg-[#f4f0e6] border-l-4 border-black h-full p-6 transition-all duration-200 overflow-y-auto flex flex-col justify-between shrink-0 z-10 ${selectedNodeData ? 'translate-x-0' : 'absolute right-0 translate-x-full sm:relative sm:translate-x-0 sm:opacity-30 sm:pointer-events-none'}`}>
+          {/* SIDEBAR DETAIL PANEL (MENGGUNAKAN LAYER FLYOUT OVERLAY PADA MOBILE) */}
+          <div className={`absolute right-0 top-0 bottom-0 z-20 w-full sm:w-[380px] bg-[#f4f0e6] border-l-4 border-black h-full p-6 transition-all duration-200 overflow-y-auto flex flex-col justify-between shrink-0 sm:relative ${selectedNodeData ? 'translate-x-0' : 'translate-x-full sm:translate-x-0 sm:opacity-30 sm:pointer-events-none'}`}>
             {selectedNodeData ? (
               <div className="flex flex-col gap-6">
-                <div className="border-b-4 border-black pb-4">
-                  <span className="text-xs bg-black text-white px-2 py-0.5 font-bold uppercase tracking-widest">
-                    INSIGHT_PANEL
-                  </span>
-                  <h2
-                    className="text-4xl font-black uppercase mt-2 text-[#FF0000] leading-none"
-                    style={{ color: '#ffffff', textShadow: '2px 2px 0px #000' }}>
-                    {selectedNodeData.label}
-                  </h2>
+                {/* DETAIL HEADER DENGAN TOMBOL CLOSE */}
+                <div className="border-b-4 border-black pb-4 flex justify-between items-start gap-2">
+                  <div>
+                    <span className="text-[10px] bg-black text-white px-2 py-0.5 font-bold uppercase tracking-widest">
+                      INSIGHT_PANEL
+                    </span>
+                    <h2
+                      className="text-2xl sm:text-4xl font-black uppercase mt-2 text-[#FF0000] leading-none break-words"
+                      style={{ color: '#ffffff', textShadow: '2px 2px 0px #000' }}>
+                      {selectedNodeData.label}
+                    </h2>
+                  </div>
+                  
+                  {/* TOMBOL PENUTUP SAKTI UNTUK MENGHILANGKAN PANEL DETAIL */}
+                  <button 
+                    onClick={() => setSelectedNodeData(null)}
+                    className="bg-black text-white font-black text-xs px-2 py-1 border-2 border-black hover:bg-[#FF0000] transition-colors uppercase shrink-0"
+                  >
+                    CLOSE [X]
+                  </button>
                 </div>
 
                 <div className="bg-white border-4 border-black p-4 shadow-[4px_4px_0_0_#000]">
@@ -226,21 +237,21 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#f4f0e6] font-mono text-black selection:bg-[#FF0000] selection:text-white flex flex-col w-full">
-      <div className="w-full bg-[#FF0000] text-white py-3 border-b-4 border-black font-bold uppercase tracking-widest text-xs sm:text-sm overflow-hidden flex whitespace-nowrap">
+      <div className="w-full bg-[#FF0000] text-white py-3 border-b-4 border-black font-bold uppercase tracking-widest text-[10px] sm:text-sm overflow-hidden flex whitespace-nowrap">
         <span className="animate-pulse w-full text-center">
           WARNING: YOU MIGHT HAVE 100+ FORGOTTEN ACCOUNTS STORING YOUR DATA
         </span>
       </div>
       <nav className="flex justify-between items-center p-3 sm:p-6 border-b-4 border-black bg-white w-full gap-2">
-        <img src={logo} alt="Logo" className="h-10 sm:h-20" />
+        <img src={logo} alt="Logo" className="h-8 sm:h-20" />
         <button onClick={() => handleGoogleLogin()} disabled={isLoading} className="bg-[#FF0000] text-white font-black text-xs sm:text-lg border-[3px] sm:border-4 border-black px-3 py-2 sm:px-8 sm:py-3 shadow-[4px_4px_0_0_#000] uppercase">
           {isLoading ? "CONNECTING..." : "LOGIN WITH GOOGLE"}
         </button>
       </nav>
       <main className="p-4 sm:p-10 w-full flex-grow flex items-center justify-center">
-        <div className="bg-[#FF0000] border-4 border-black p-8 sm:p-16 shadow-[12px_12px_0_0_#000] text-center max-w-4xl transform -rotate-1">
-          <h1 className="text-5xl sm:text-7xl font-black text-white uppercase leading-tight mb-6" style={{ textShadow: '4px 4px 0px #000' }}>TRACK WHO HAS YOUR DATA.</h1>
-          <button onClick={() => handleGoogleLogin()} className="bg-yellow-300 text-black font-black text-2xl border-4 border-black px-10 py-5 shadow-[8px_8px_0_0_#000] uppercase">START SCANNING NOW</button>
+        <div className="bg-[#FF0000] border-4 border-black p-6 sm:p-16 shadow-[8px_8px_0_0_#000] sm:shadow-[12px_12px_0_0_#000] text-center max-w-4xl transform -rotate-1">
+          <h1 className="text-3xl sm:text-7xl font-black text-white uppercase leading-tight mb-6" style={{ textShadow: '4px 4px 0px #000' }}>TRACK WHO HAS YOUR DATA.</h1>
+          <button onClick={() => handleGoogleLogin()} className="bg-yellow-300 text-black font-black text-lg sm:text-2xl border-4 border-black px-6 py-3 sm:px-10 sm:py-5 shadow-[4px_4px_0_0_#000] sm:shadow-[8px_8px_0_0_#000] uppercase">START SCANNING NOW</button>
         </div>
       </main>
     </div>

@@ -1,21 +1,19 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from app.models.user import User
-from app.core.database import session as get_session  # Import session function from database.py
+from app.schemas.user import UserResponse
+from app.routers.scan import get_current_user_id
+from app.core.database import session as get_session
 
 # Create a specialized router for User-related operations
 router = APIRouter(prefix="/users", tags=["Users"])
 
-# 1. Get all users (GET method)
-@router.get("/")
-def get_all_users(db: Session = Depends(get_session)):
-    users = db.exec(select(User)).all()
-    return users
-
-# 2. Create a new user (POST method)
-@router.post("/")
-def create_new_user(user: User, db: Session = Depends(get_session)):
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+@router.get("/me", response_model=UserResponse)
+def get_my_profile(
+    user_id: int = Depends(get_current_user_id), # <-- Dikunci pakai JWT!
+    db: Session = Depends(get_session)
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
     return user
