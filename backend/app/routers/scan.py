@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlmodel import Session, select
 from cryptography.fernet import Fernet
-from app.core.config import settings
 import httpx
 import re
 import jwt
+import asyncio
 
 from app.core.database import session as get_session
 from app.models.user import User
@@ -15,7 +15,24 @@ router = APIRouter(prefix="/scan", tags=["Radar Scanner"])
 
 fernet = Fernet(settings.ENCRYPTION_KEY.encode())
 
-# Utility function to extract platform name from email address
+# 1. Helper function for extracting platform name from email address using regex pattern matching
+def extract_platform_name(email_from: str):
+    email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', email_from)
+    if not email_match:
+        return None, None
+    
+    email = email_match.group(0).lower()
+    local_part, domain = email.split('@')
+    
+    domain_parts = domain.split('.')
+    if len(domain_parts) >= 2:
+        platform_name = domain_parts[-2].upper()
+    else:
+        platform_name = local_part.upper()
+        
+    return platform_name, domain
+
+# 2. JWT-based authentication dependency to get current user ID from Authorization header
 def get_current_user_id(authorization: str = Header(...)) -> int:
     try:
         token_type, token = authorization.split(" ")
@@ -31,7 +48,18 @@ def get_current_user_id(authorization: str = Header(...)) -> int:
     except Exception:
         raise HTTPException(status_code=401, detail="Authentication failed.")
 
-# Name extraction logic based on email patterns
+# 3. Parallelized function to fetch email metadata for a given message ID using Gmail API
+async def fetch_message_metadata(client: httpx.AsyncClient, msg_id: str, headers: dict):
+    detail_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=From"
+    try:
+        response = await client.get(detail_url, headers=headers)
+        if response.status_code == 200:
+            return response.json()
+    except Exception:
+        pass
+    return None
+
+# MAIN RADAR ROUTER ENGINE
 @router.post("/gmail")
 async def scan_gmail_inbox(
     user_id: int = Depends(get_current_user_id),
@@ -49,53 +77,56 @@ async def scan_gmail_inbox(
     headers = {"Authorization": f"Bearer {decrypted_token}"}
     
     async with httpx.AsyncClient() as client:
+        # Ambil daftar 100 ID email terakhir
         gmail_list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100"
         list_response = await client.get(gmail_list_url, headers=headers)
         
         if list_response.status_code != 200:
-            print(f"[!] GMAIL API Error - Status Code:", list_response.status_code)
             raise HTTPException(status_code=401, detail="Google API Authorization failed.")
             
         messages = list_response.json().get("messages", [])
         detected_count = 0
         scanned_platforms = set()
         
-        for msg in messages:
-            msg_id = msg["id"]
-            detail_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=metadata&metadataHeaders=From"
-            detail_response = await client.get(detail_url, headers=headers)
-            
-            if detail_response.status_code == 200:
-                headers_data = detail_response.json().get("payload", {}).get("headers", [])
-                email_from = next((h["value"] for h in headers_data if h["name"].lower() == "from"), "")
+        tasks = [fetch_message_metadata(client, msg["id"], headers) for msg in messages]
+        
+        completed_messages = await asyncio.gather(*tasks)
+        
+        for msg_data in completed_messages:
+            if not msg_data:
+                continue
                 
-                if email_from:
-                    platform_name, domain = extract_platform_name(email_from)
-                    banned_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'ymail.com', 'warga']
-                    if not platform_name or domain in banned_domains:
-                        continue
-                        
-                    if platform_name in scanned_platforms:
-                        continue
-                        
-                    scanned_platforms.add(platform_name)
+            headers_data = msg_data.get("payload", {}).get("headers", [])
+            email_from = next((h["value"] for h in headers_data if h["name"].lower() == "from"), "")
+            
+            if email_from:
+                platform_name, domain = extract_platform_name(email_from)
+                banned_domains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'ymail.com']
+                
+                if not platform_name or domain in banned_domains:
+                    continue
                     
-                    stmt = select(DigitalFootprint).where(
-                        DigitalFootprint.user_id == user_id, 
-                        DigitalFootprint.platform_name == platform_name
+                if platform_name in scanned_platforms:
+                    continue
+                    
+                scanned_platforms.add(platform_name)
+                
+                stmt = select(DigitalFootprint).where(
+                    DigitalFootprint.user_id == user_id, 
+                    DigitalFootprint.platform_name == platform_name
+                )
+                exists = db.exec(stmt).first()
+                
+                if not exists:
+                    new_footprint = DigitalFootprint(
+                        user_id=user_id,
+                        platform_name=platform_name,
+                        category="UNCATEGORIZED",
+                        risk_level="MEDIUM",
+                        description=f"Automated radar detection from official domain: {domain}"
                     )
-                    exists = db.exec(stmt).first()
-                    
-                    if not exists:
-                        new_footprint = DigitalFootprint(
-                            user_id=user_id,
-                            platform_name=platform_name,
-                            category="UNCATEGORIZED",
-                            risk_level="MEDIUM",
-                            description=f"Automated radar detection from official domain: {domain}"
-                        )
-                        db.add(new_footprint)
-                        detected_count += 1
+                    db.add(new_footprint)
+                    detected_count += 1
         
         db.commit()
         
@@ -105,7 +136,6 @@ async def scan_gmail_inbox(
         "new_footprints_found": detected_count
     }
 
-# Helper function to extract platform name and domain from email address
 @router.get("/footprints")
 def get_user_footprints(
     user_id: int = Depends(get_current_user_id),
