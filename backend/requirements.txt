@@ -11,3 +11,4 @@ psycopg[binary]
 pyjwt
 cryptography
 httpx
+email-validator
