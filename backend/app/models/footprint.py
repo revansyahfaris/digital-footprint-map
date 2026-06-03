@@ -7,3 +7,4 @@ class DigitalFootprint(SQLModel, table=True):
     platform_name: str = Field(index=True)
     category: Optional[str] = None
     risk_level: Optional[str] = "Low"
+    
