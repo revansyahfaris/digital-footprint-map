@@ -297,7 +297,7 @@ function App() {
               <span className="bg-black text-white text-[10px] font-black px-2 py-0.5 uppercase tracking-widest">
                 SYSTEM_PIPELINE
               </span>
-              <h2 className="text-3xl sm:text-5xl font-black uppercase mt-2 tracking-tighter">
+              <h2 className="text-3xl sm:text-5xl font-black uppercase mt-2 tracking-tighter" style={{ color: '#FF0000' }}>
                 HOW THE RADAR SECURITY WORKS
               </h2>
             </div>
